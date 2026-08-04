@@ -21,8 +21,9 @@
  *
  */
 
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import cx from 'classnames';
+import { Crosshair, AlignHorizontalJustifyCenter } from 'lucide-react';
 
 import { Button as ShadcnButton } from 'app/components/shadcn/Button';
 import { Button } from 'app/components/Button';
@@ -36,11 +37,12 @@ import {
 import { METRIC_UNITS, PROBING_CATEGORY } from '../../constants';
 import ProbeImage from './ProbeImage';
 import ProbeDiameter from './ProbeDiameter';
+import EdgeCenter from './EdgeCenter';
 import { Actions, State } from './definitions';
 import useKeybinding from 'app/lib/useKeybinding';
 import useShuttleEvents from 'app/hooks/useShuttleEvents';
 import Tooltip from 'app/components/Tooltip';
-import { TOUCHPLATE_TYPES } from 'app/lib/constants';
+import { TOUCHPLATE_TYPES, TOUCHPLATE_TYPE_3D } from 'app/lib/constants';
 
 type ProbeProps = {
     state: State;
@@ -48,6 +50,10 @@ type ProbeProps = {
 };
 
 const Probe = ({ state, actions }: ProbeProps) => {
+    // Probe mode: 'single' = edge-independent probing (X/Y/Z Touch),
+    // 'center' = edge-midpoint probing (EdgeCenter, 3D probe only).
+    const [mode, setMode] = useState<'single' | 'center'>('single');
+
     // Use a ref to always have access to the latest state
     const stateRef = useRef(state);
     const actionsRef = useRef(actions);
@@ -131,83 +137,152 @@ const Probe = ({ state, actions }: ProbeProps) => {
 
     const probeCommand = availableProbeCommands[selectedProbeCommand];
 
+    const is3D = touchplateType === TOUCHPLATE_TYPE_3D;
+
+    // If not a 3D probe, force single mode (center mode not available).
+    const activeMode = is3D ? mode : 'single';
+
     return (
-        <div className="w-full h-full max-xl:pt-1">
-            <div className="grid grid-cols-[5fr_3fr] w-full h-full max-xl:max-h-[144px]">
-                {/* <div className="w-full h-full m-auto grid gap-4">
-                    <div className="h-full grid grid-rows[4fr_2fr] self-center gap-2"> */}
-                <div className="grid grid-rows-[1fr_1fr_1fr] gap-0.5 items-center justify-center">
-                    { touchplateTypeSwitcher &&
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button  aria-label="Change Probe Type" size="sm">{touchplateType}</Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-56 bg-white">
-                                { Object.values(TOUCHPLATE_TYPES).map((tpt) =>
-                                    <DropdownMenuItem
-                                        key={tpt}
-                                        onClick={() => actions.changeTouchPlateType(tpt)}
-                                        className="flex items-center hover:bg-blue-100 transition-colors duration-200 cursor-pointer dark:hover:bg-dark-lighter"
+        <div className="w-full h-full max-xl:pt-1 flex flex-row gap-1">
+            {/* Active panel */}
+            {activeMode === 'center' ? (
+                <div className="flex-1 min-w-0">
+                    <EdgeCenter state={state} actions={actions} />
+                </div>
+            ) : (
+                <div className="flex-1 min-w-0 flex flex-col">
+                    <div className="grid grid-cols-[5fr_3fr] w-full flex-1 max-xl:max-h-[144px]">
+                        <div className="grid grid-rows-[1fr_1fr_1fr] gap-0.5 items-center justify-center">
+                            {touchplateTypeSwitcher && (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            aria-label="Change Probe Type"
+                                            size="sm"
+                                        >
+                                            {touchplateType}
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-56 bg-white">
+                                        {Object.values(TOUCHPLATE_TYPES).map(
+                                            (tpt) => (
+                                                <DropdownMenuItem
+                                                    key={tpt}
+                                                    onClick={() =>
+                                                        actions.changeTouchPlateType(
+                                                            tpt,
+                                                        )
+                                                    }
+                                                    className="flex items-center hover:bg-blue-100 transition-colors duration-200 cursor-pointer dark:hover:bg-dark-lighter"
+                                                >
+                                                    {tpt}
+                                                </DropdownMenuItem>
+                                            ),
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
+                            <div className="flex w-full bg-white dark:bg-dark rounded-md border-solid border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-200 p-[2px]">
+                                {availableProbeCommands.map((command, index) => (
+                                    <Tooltip
+                                        content={`Probe using ${command.id}`}
+                                        key={command.id}
                                     >
-                                        {tpt}
-                                    </DropdownMenuItem>)
-                                }
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    }
-                    <div className="flex w-full bg-white dark:bg-dark rounded-md border-solid border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-200 p-[2px]">
-                        {availableProbeCommands.map((command, index) => (
-                            <Tooltip
-                                content={`Probe using ${command.id}`}
-                                key={command.id}
+                                        <ShadcnButton
+                                            key={command.id}
+                                            onClick={() =>
+                                                actions.handleProbeCommandChange(
+                                                    index,
+                                                )
+                                            }
+                                            size="icon"
+                                            aria-label={`Select probing routine ${command.id}`}
+                                            aria-pressed={
+                                                index === selectedProbeCommand
+                                            }
+                                            className={cx(
+                                                'rounded-md relative h-[calc(4vh+3px)]',
+                                                {
+                                                    'bg-blue-400 bg-opacity-30':
+                                                        index ===
+                                                        selectedProbeCommand,
+                                                },
+                                            )}
+                                        >
+                                            {command.id.split(' ')[0]}
+                                        </ShadcnButton>
+                                    </Tooltip>
+                                ))}
+                            </div>
+                            <div
+                                className={cx('flex items-center max-xl:px-6', {
+                                    hidden: !probeCommand?.tool,
+                                })}
                             >
-                                <ShadcnButton
-                                    key={command.id}
-                                    onClick={() =>
-                                        actions.handleProbeCommandChange(index)
-                                    }
-                                    size="icon"
-                                    aria-label={`Select probing routine ${command.id}`}
-                                    aria-pressed={index === selectedProbeCommand}
-                                    className={cx(
-                                        'rounded-md relative h-[calc(4vh+3px)]',
-                                        {
-                                            'bg-blue-400 bg-opacity-30':
-                                                index === selectedProbeCommand,
-                                        },
-                                    )}
+                                <ProbeDiameter
+                                    actions={actions}
+                                    state={state}
+                                    probeCommand={probeCommand}
+                                />
+                            </div>
+                            <div className="flex items-center justify-center">
+                                <Button
+                                    onClick={() => actions.onOpenChange(true)}
+                                    disabled={!canClick}
                                 >
-                                    {command.id.split(' ')[0]}
-                                </ShadcnButton>
-                            </Tooltip>
-                        ))}
+                                    Probe
+                                </Button>
+                            </div>
+                        </div>
+                        <div className="flex w-full h-full min-h-full max-xl:pt-2">
+                            <ProbeImage
+                                touchplateType={touchplateType}
+                                probeCommand={probeCommand}
+                            />
+                        </div>
                     </div>
-                    <div
-                        className={cx('flex items-center max-xl:px-6', {
-                            hidden: !probeCommand?.tool,
-                        })}
+                </div>
+            )}
+
+            {/* Vertical mode tabs (right side). Height scales with the widget
+                via the same vh-based formula used by the probe command buttons,
+                so tabs grow/shrink with the widget and stay consistent with
+                the rest of the probe UI. */}
+            <div className="flex flex-col gap-1 w-8 shrink-0">
+                <Tooltip content="Single-axis probing (X / Y / Z Touch)">
+                    <button
+                        type="button"
+                        onClick={() => setMode('single')}
+                        aria-pressed={activeMode === 'single'}
+                        aria-label="Single-axis probe mode"
+                        className={cx(
+                            'h-[calc(4vh+3px)] w-full flex items-center justify-center rounded-md border transition-colors',
+                            activeMode === 'single'
+                                ? 'bg-robin-500/20 border-robin-500 text-robin-700 dark:text-robin-400'
+                                : 'bg-white dark:bg-dark border-gray-300 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800',
+                        )}
                     >
-                        <ProbeDiameter
-                            actions={actions}
-                            state={state}
-                            probeCommand={probeCommand}
-                        />
-                    </div>
-                    <div className="flex items-center justify-center">
-                        <Button
-                            onClick={() => actions.onOpenChange(true)}
-                            disabled={!canClick}
+                        <Crosshair size={16} />
+                    </button>
+                </Tooltip>
+                {is3D && (
+                    <Tooltip content="Edge-center probing (find midpoint of two opposite edges)">
+                        <button
+                            type="button"
+                            onClick={() => setMode('center')}
+                            aria-pressed={activeMode === 'center'}
+                            aria-label="Edge-center probe mode"
+                            className={cx(
+                                'h-[calc(4vh+3px)] w-full flex items-center justify-center rounded-md border transition-colors',
+                                activeMode === 'center'
+                                    ? 'bg-robin-500/20 border-robin-500 text-robin-700 dark:text-robin-400'
+                                    : 'bg-white dark:bg-dark border-gray-300 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800',
+                            )}
                         >
-                            Probe
-                        </Button>
-                    </div>
-                </div>
-                <div className="flex w-full h-full min-h-full max-xl:pt-2">
-                    <ProbeImage
-                        touchplateType={touchplateType}
-                        probeCommand={probeCommand}
-                    />
-                </div>
+                            <AlignHorizontalJustifyCenter size={16} />
+                        </button>
+                    </Tooltip>
+                )}
             </div>
         </div>
     );

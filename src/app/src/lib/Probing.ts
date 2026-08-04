@@ -1275,3 +1275,100 @@ export const getProbeCode = (
     // Default do nothing bc we don't recognize the options
     return [];
 };
+
+// Options for edge-center probing (find midpoint of two opposite edges).
+// All linear values are in mm — the routine always forces G21 (metric) to
+// keep probe-result arithmetic simple, matching the AutoZero routines.
+export interface EdgeCenterOptions {
+    // 'x' or 'y' — axis along which to probe two opposite edges
+    axis: 'x' | 'y';
+    // Workpiece dimension along the chosen axis (edge-to-edge), mm
+    workSize: number;
+    // Z lift distance to safely clear the workpiece when crossing to the
+    // opposite edge, mm
+    zLift: number;
+    // Fast probe travel distance toward each edge, mm.
+    // Slow probe and retraction are derived from this:
+    //   slow = depth / 5, retract = depth / 10
+    probeDepth: number;
+    // Fast probe feedrate, mm/min
+    probeFastFeed: number;
+    // Slow (precision) probe feedrate, mm/min
+    probeSlowFeed: number;
+    // Firmware type — controls probe delay dwell (grbl vs grblHAL)
+    firmware?: string;
+}
+
+// Build the G-code sequence to probe two opposite edges along an axis and
+// set the active WCS zero at the midpoint. Uses gSender's `%`-expression
+// feeder extensions (%wait, %global, [expr]) so each probe result is captured
+// synchronously before computing the midpoint.
+//
+// Direction convention: the probe starts OUTSIDE edge 1 on the -axis side;
+// edge 1 is probed toward +axis, edge 2 toward -axis.
+export const getEdgeCenterRoutine = (
+    options: EdgeCenterOptions,
+): Array<string> => {
+    const {
+        axis,
+        workSize,
+        zLift,
+        probeDepth,
+        probeFastFeed,
+        probeSlowFeed,
+        firmware,
+    } = options;
+
+    const a = axis.toUpperCase(); // 'X' | 'Y'
+    const posvar = axis === 'x' ? 'posx' : 'posy'; // gSender work-coord var
+
+    const retract = probeDepth / 10;
+    const slowDepth = probeDepth / 5;
+    const probeDelay = firmware === GRBLHAL ? 0.05 : 0.15;
+    const backoff = 2; // mm to back off from an edge before lifting Z
+
+    return [
+        '; Edge-center probing (axis ' + a + ')',
+        'G21 G91',
+        '%global._ec_p1 = 0, global._ec_p2 = 0',
+        `%PROBE_DELAY=${probeDelay}`,
+        // === Edge 1 (lower side, probe toward +axis) ===
+        `G38.2 ${a}${probeDepth} F${probeFastFeed}`,
+        '%wait',
+        `%global._ec_p1=${posvar}`,
+        `G0 ${a}${-retract}`,
+        `G38.2 ${a}${slowDepth} F${probeSlowFeed}`,
+        '%wait',
+        `%global._ec_p1=${posvar}`,
+        `G4 P[PROBE_DELAY]`,
+        // Back off from edge 1 before lifting Z so the probe tip does not
+        // drag along the workpiece side.
+        `G0 ${a}${-backoff}`,
+        // === Cross over to the opposite side ===
+        `G0 Z${zLift}`,
+        // Cross-over distance = workSize + backoff + small margin so the
+        // reverse probe can contact edge 2.
+        `G0 ${a}${workSize + backoff + 2}`,
+        // Z descent split into two legs: rapid for 2/3 (clear region), then a
+        // G38.3 no-error probe for the last 1/3 (danger zone near surface).
+        `G0 Z${-(zLift * 2) / 3}`,
+        `G38.3 Z${-zLift / 3} F100`,
+        // === Edge 2 (upper side, probe toward -axis) ===
+        `G38.2 ${a}${-probeDepth} F${probeFastFeed}`,
+        '%wait',
+        `%global._ec_p2=${posvar}`,
+        `G0 ${a}${retract}`,
+        `G38.2 ${a}${-slowDepth} F${probeSlowFeed}`,
+        '%wait',
+        `%global._ec_p2=${posvar}`,
+        `G4 P[PROBE_DELAY]`,
+        `G0 ${a}${backoff}`,
+        // === Move to midpoint and set WCS zero ===
+        // Lift Z before traversing: the path from edge 2 to center crosses
+        // over solid workpiece material.
+        `G0 Z${zLift}`,
+        `G90 G0 ${a}[0.5 * (global._ec_p1 + global._ec_p2)]`,
+        'G10 L20 P0 ' + a + '0',
+        '; Edge-center complete — Z left lifted at midpoint on purpose',
+    ];
+};

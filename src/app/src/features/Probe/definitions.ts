@@ -124,6 +124,10 @@ export interface Probe {
     tipDiameter3D: number;
     xyRetract3D: number;
     probeMovementSpeed: number;
+    // Edge-center probing (3D probe only)
+    edgeWorkSize: number;
+    edgeZLift: number;
+    edgeProbeDepth: number;
 }
 
 export interface Actions {
@@ -148,6 +152,11 @@ export interface Actions {
     nextProbeDirection: () => void;
     _setProbeType: (value: string) => void;
     _setCurrentTool: (tool: AvailableTool) => void;
+    // Edge-center probing (3D probe only)
+    handleEdgeWorkSizeChange: (event: Event) => void;
+    handleEdgeZLiftChange: (event: Event) => void;
+    handleEdgeProbeDepthChange: (event: Event) => void;
+    runEdgeCenter: (axis: 'x' | 'y') => void;
 }
 
 export interface AvailableTool {
@@ -171,4 +180,8 @@ export interface State {
     direction: number;
     probeType: PROBE_TYPES_T;
     connectivityTest: boolean;
+    // Edge-center probing (3D probe only)
+    edgeWorkSize: number;
+    edgeZLift: number;
+    edgeProbeDepth: number;
 }

@@ -47,7 +47,7 @@ import {
     GRBL_ACTIVE_STATE_IDLE,
     WORKFLOW_STATE_RUNNING,
 } from '../../constants';
-import { getProbeCode } from 'app/lib/Probing';
+import { getProbeCode, getEdgeCenterRoutine } from 'app/lib/Probing';
 import { getWidgetConfigContext } from '../WidgetConfig/WidgetContextProvider';
 import {
     Actions,
@@ -147,6 +147,16 @@ const ProbeWidget = () => {
     );
     const [probeMovementSpeed, setProbeMovementSpeed] = useState<number>(
         config.get('probeMovementSpeed') || 0,
+    );
+    // Edge-center probing state (3D probe only). Defaults mirror bCNC.
+    const [edgeWorkSize, setEdgeWorkSize] = useState<number>(
+        config.get('edgeWorkSize') || 20,
+    );
+    const [edgeZLift, setEdgeZLift] = useState<number>(
+        config.get('edgeZLift') || 5,
+    );
+    const [edgeProbeDepth, setEdgeProbeDepth] = useState<number>(
+        config.get('edgeProbeDepth') || 10,
     );
     const [touchplate, setTouchplate] = useState<ProbeProfile>(
         store.get('workspace.probeProfile', {}),
@@ -429,6 +439,37 @@ const ProbeWidget = () => {
                 setDirection(direction + 1);
             }
         },
+        handleEdgeWorkSizeChange: (event: Event): void => {
+            const value = (event.target as HTMLTextAreaElement).value;
+            setEdgeWorkSize(Number(value));
+        },
+        handleEdgeZLiftChange: (event: Event): void => {
+            const value = (event.target as HTMLTextAreaElement).value;
+            setEdgeZLift(Number(value));
+        },
+        handleEdgeProbeDepthChange: (event: Event): void => {
+            const value = (event.target as HTMLTextAreaElement).value;
+            setEdgeProbeDepth(Number(value));
+        },
+        runEdgeCenter: (axis: 'x' | 'y'): void => {
+            const code = getEdgeCenterRoutine({
+                axis,
+                workSize: Math.abs(edgeWorkSize),
+                zLift: Math.abs(edgeZLift),
+                probeDepth: Math.abs(edgeProbeDepth),
+                probeFastFeed: probeFastFeedrate,
+                probeSlowFeed: probeFeedrate,
+                firmware: type,
+            });
+            controller.command('gcode:safe', code, 'G21');
+            posthog?.capture('probe_run', {
+                probe_command_id: 'Edge Center ' + axis.toUpperCase(),
+                touchplate_type: touchplateType,
+                units,
+                firmware: type,
+                type: probeType,
+            });
+        },
     };
 
     const availableProbeCommands = actions.generatePossibleProbeCommands();
@@ -451,6 +492,9 @@ const ProbeWidget = () => {
         config.set('probeDepth', probeDepth);
         config.set('touchPlateHeight', touchPlateHeight);
         config.set('direction', direction);
+        config.set('edgeWorkSize', edgeWorkSize);
+        config.set('edgeZLift', edgeZLift);
+        config.set('edgeProbeDepth', edgeProbeDepth);
     });
 
     useEffect(() => {
@@ -618,6 +662,9 @@ const ProbeWidget = () => {
             setConnectivityTest(config.get('connectivityTest'));
             setZRetractDistance(config.get('zRetractNormal'));
             setZRetractDistanceAuto(config.get('zRetractAuto'));
+            setEdgeWorkSize(config.get('edgeWorkSize') || 20);
+            setEdgeZLift(config.get('edgeZLift') || 5);
+            setEdgeProbeDepth(config.get('edgeProbeDepth') || 10);
 
             let newZProbeDistance = config.get('zProbeDistance');
             if (newZProbeDistance) {
@@ -644,6 +691,9 @@ const ProbeWidget = () => {
         direction: direction,
         probeType: probeType,
         connectivityTest: connectivityTest,
+        edgeWorkSize: edgeWorkSize,
+        edgeZLift: edgeZLift,
+        edgeProbeDepth: edgeProbeDepth,
     };
 
     return (
