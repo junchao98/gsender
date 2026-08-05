@@ -16,7 +16,7 @@ export function StopButton({ disabled = false, onClick }) {
                 }
             }}
             className={cn(
-                'absolute top-[50%] left-[50%] transform -translate-x-1/2 -translate-y-1/2 w-[71px] portrait:w-[83px] h-[71px] portrait:h-[83px]',
+                'absolute top-[50%] left-[50%] transform -translate-x-1/2 -translate-y-1/2 w-[85px] portrait:w-[100px] h-[85px] portrait:h-[100px]',
                 {
                     'cursor-not-allowed': disabled,
                     'cursor-pointer': !disabled,

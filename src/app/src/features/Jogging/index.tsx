@@ -1007,7 +1007,7 @@ export function Jogging({ hideRotary = false }) {
     return (
         <>
             <div className="flex flex-row w-full gap-2 justify-around items-center select-none max-xl:scale-90">
-                <div className="min-w-[180px] portrait:min-w-[210px] relative">
+                <div className="min-w-[216px] portrait:min-w-[252px] relative">
                     <JogWheel
                         distance={jogSpeed.xyStep}
                         feedrate={jogSpeed.feedrate}
@@ -1015,7 +1015,7 @@ export function Jogging({ hideRotary = false }) {
                         threshold={jogThreshold}
                     />
                     <img
-                        className="absolute top-0 left-0 pointer-events-none w-[180px] portrait:w-[210px] h-[180px] portrait:h-[210px]"
+                        className="absolute top-0 left-0 pointer-events-none w-[216px] portrait:w-[252px] h-[216px] portrait:h-[252px]"
                         src={jogWheeelLabels}
                         alt="Jog wheel arrows"
                     />

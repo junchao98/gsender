@@ -87,7 +87,7 @@ export function AJog({
     return (
         <div
             id="aJog"
-            className="relative w-[45px] portrait:w-[52px] h-[168px] portrait:h-[195px]"
+            className="relative w-[54px] portrait:w-[62px] h-[202px] portrait:h-[234px]"
         >
             <TabJog
                 topHandlers={aPlusJogHandlers}

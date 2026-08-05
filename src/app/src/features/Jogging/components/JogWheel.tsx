@@ -238,7 +238,7 @@ export function JogWheel({
             viewBox="0 0 200 200"
             fill="none"
             className={cn(
-                'hover:transition-all duration-200 w-[180px] portrait:w-[210px] h-[180px] portrait:h-[210px]',
+                'hover:transition-all duration-200 w-[216px] portrait:w-[252px] h-[216px] portrait:h-[252px]',
                 {
                     'cursor-pointer': canClick,
                     'cursor-not-allowed': !canClick,
