@@ -21,13 +21,16 @@
  *
  */
 
+import { useEffect } from 'react';
 import { Target } from 'lucide-react';
 
 import { Input } from 'app/components/shadcn/Input';
 import { Button } from 'app/components/Button';
 import Tooltip from 'app/components/Tooltip';
+import { useTypedSelector } from 'app/hooks/useTypedSelector';
 import { METRIC_UNITS } from '../../constants';
 import { Actions, State } from './definitions';
+import ProbeCircuitStatus from './ProbeCircuitStatus';
 
 type Props = {
     state: State;
@@ -39,12 +42,46 @@ type Props = {
 // Probes two opposite edges along an axis and sets the active WCS zero at
 // the midpoint. Direction convention: the probe starts OUTSIDE edge 1 on
 // the -axis side; edge 1 is probed toward +axis, edge 2 toward -axis.
+//
+// Mirrors the connectivity-check workflow of RunProbe.tsx: on mount it
+// starts a connectivity test and the action buttons stay disabled until
+// the user manually triggers the probe needle once (green indicator).
 const EdgeCenter = ({ state, actions }: Props) => {
-    const { canClick, units } = state;
+    const { canClick, units, connectionMade } = state;
     const unitLabel = units === METRIC_UNITS ? 'mm' : 'in';
 
+    const probePinStatus = useTypedSelector(
+        (reduxState) =>
+            reduxState.controller.state.status?.pinState.P ?? false,
+    );
+
+    // Start the connectivity test when the panel is shown, and reset it
+    // whenever the probe pin is confirmed triggered (same pattern as
+    // RunProbe.tsx lines 71-77).
+    useEffect(() => {
+        actions.startConnectivityTest();
+        return () => {
+            actions.setProbeConnectivity(false);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // If the probe is currently triggered (e.g. user is holding the needle),
+    // mark connectivity as confirmed — matches RunProbe's behaviour.
+    useEffect(() => {
+        if (probePinStatus) {
+            actions.setProbeConnectivity(true);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [probePinStatus]);
+
+    const probeActive = actions.returnProbeConnectivity();
+    // Buttons are enabled only when connected AND the probe circuit has been
+    // confirmed by a manual trigger.
+    const buttonsEnabled = canClick && connectionMade;
+
     return (
-        <div className="w-full flex flex-col gap-2 p-2 border-t border-gray-200 dark:border-gray-700">
+        <div className="w-full flex flex-col gap-2 p-2">
             <div className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
                 <Target size={16} />
                 <span className="text-sm font-semibold">
@@ -124,23 +161,39 @@ const EdgeCenter = ({ state, actions }: Props) => {
                 <span className="text-xs text-gray-500">{unitLabel}</span>
             </div>
 
+            {/* Connectivity check — user must trigger the probe needle once
+                before the action buttons are enabled. Same UX as the single
+                probe dialog (RunProbe.tsx). */}
+            <div className="flex items-center justify-center">
+                <ProbeCircuitStatus
+                    connected={canClick}
+                    probeActive={probeActive}
+                />
+            </div>
+            {!connectionMade && canClick && (
+                <p className="text-xs text-center text-gray-500">
+                    Gently push the probe needle to confirm the circuit, then
+                    choose an axis.
+                </p>
+            )}
+
             <div className="grid grid-cols-2 gap-2 mt-1">
                 <Tooltip content="Probe two opposite edges along the Y axis and set Y0 at the midpoint. Start the probe OUTSIDE the lower edge (-Y side).">
                     <Button
                         onClick={() => actions.runEdgeCenter('y')}
-                        disabled={!canClick}
+                        disabled={!buttonsEnabled}
                         className="h-8 text-xs"
                     >
-                        Center Y
+                        {connectionMade ? 'Center Y' : 'Waiting...'}
                     </Button>
                 </Tooltip>
                 <Tooltip content="Probe two opposite edges along the X axis and set X0 at the midpoint. Start the probe OUTSIDE the left edge (-X side).">
                     <Button
                         onClick={() => actions.runEdgeCenter('x')}
-                        disabled={!canClick}
+                        disabled={!buttonsEnabled}
                         className="h-8 text-xs"
                     >
-                        Center X
+                        {connectionMade ? 'Center X' : 'Waiting...'}
                     </Button>
                 </Tooltip>
             </div>
