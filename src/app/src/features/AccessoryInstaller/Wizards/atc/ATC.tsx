@@ -29,11 +29,11 @@ import {
 } from 'app/features/AccessoryInstaller/Wizards/atc/components/TemplateManagement.tsx';
 
 export function useSienciATCWizard(): Wizard {
-    const { connectionValidation, coreFirmwareValidation } = useValidations();
+    const { connectionValidation } = useValidations();
 
     const validations = useMemo(
-        () => [connectionValidation, coreFirmwareValidation],
-        [connectionValidation, coreFirmwareValidation],
+        () => [connectionValidation],
+        [connectionValidation],
     );
     const storeVersion = store.get('widgets.atc.templates.version', '-');
 
